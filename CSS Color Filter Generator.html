@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CSS Color Filter Generator</title>
+<style>
+:root{--bg:#fafaf7;--fg:#1c1c1a;--mute:#6b6b66;--card:#fff;--line:#deded8;--acc:#2f5d50;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161615;--fg:#ececE6;--mute:#9a9a92;--card:#201f1e;--line:#35342f;--acc:#7fc0ad}}
+:root[data-theme="dark"]{--bg:#161615;--fg:#ececE6;--mute:#9a9a92;--card:#201f1e;--line:#35342f;--acc:#7fc0ad}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:640px;margin:0 auto;padding:28px 18px 48px}
+h1{font-size:1.4rem;margin:0 0 4px}
+p.sub{color:var(--mute);margin:0 0 20px;font-size:.92rem}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+input[type=text]{flex:1;min-width:140px;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font:inherit}
+input[type=color]{width:46px;height:44px;border:1px solid var(--line);border-radius:8px;background:var(--card);padding:3px}
+button{padding:11px 18px;border:0;border-radius:8px;background:var(--acc);color:var(--bg);font:inherit;font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--acc);border:1px solid var(--line);padding:6px 12px;font-size:.85rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:16px}
+.sw{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sw div.box{height:96px;border-radius:8px;border:1px solid var(--line)}
+.lbl{font-size:.78rem;color:var(--mute);margin:6px 0 2px;text-transform:uppercase;letter-spacing:.04em}
+code{font:.85rem ui-monospace,Menlo,Consolas,monospace;word-break:break-all}
+.out{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.stat{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:.88rem;color:var(--mute)}
+.stat b{color:var(--fg)}
+</style>
+</head>
+<body>
+<main>
+<h1>CSS Color Filter Generator</h1>
+<p class="sub">Turns a black image or icon into any color using a CSS <code>filter</code>. Solved with multi-start search plus pattern-search refinement, scored in perceptual (CIELAB) space, then checked against your browser's real rendering.</p>
+<div class="row">
+  <input type="color" id="pick" value="#2f5d50" aria-label="Pick color">
+  <input type="text" id="hex" value="#2f5d50" placeholder="#hex or rgb(r,g,b)" aria-label="Color">
+  <button id="go">Get filter</button>
+</div>
+
+<div class="card">
+  <div class="sw">
+    <div><div class="box" id="target"></div><div class="lbl">Target</div><code id="tv"></code></div>
+    <div><div class="box" id="result" style="background:#000"></div><div class="lbl">Black + filter (CSS applied)</div><code id="rv"></code></div>
+  </div>
+  <div class="stat">
+    <span>ΔE (model): <b id="de">–</b></span>
+    <span>Browser pixel: <b id="bp">–</b></span>
+    <span>ΔE (browser): <b id="bde">–</b></span>
+  </div>
+</div>
+
+<div class="card out">
+  <code id="css">filter: …</code>
+  <button class="ghost" id="copy">Copy</button>
+</div>
+<p class="sub" style="margin-top:12px">ΔE under 1 is invisible to most people; under 2.3 is a just-noticeable difference. The filter assumes a pure black source, so make the image black first.</p>
+</main>
+<script>
+(function(){
+  var NAMES=['invert','sepia','saturate','hue-rotate','brightness','contrast'];
+  var LO=[0,0,0,0,0,0], HI=[1,1,20,360,2,2];
+  var cl=function(v){return v<0?0:v>1?1:v};
+
+  // Mirrors the CSS filter-effects spec matrices, clamping after each step like browsers do.
+  function apply(p){
+    var c=[0,0,0],i,r,g,b,n;
+    var v=p[0]; c=c.map(function(x){return cl(x*(1-2*v)+v)});
+    var s=p[1];
+    r=c[0];g=c[1];b=c[2];
+    c=[cl((.393+.607*(1-s))*r+(.769-.769*(1-s))*g+(.189-.189*(1-s))*b),
+       cl((.349-.349*(1-s))*r+(.686+.314*(1-s))*g+(.168-.168*(1-s))*b),
+       cl((.272-.272*(1-s))*r+(.534-.534*(1-s))*g+(.131+.869*(1-s))*b)];
+    s=p[2];r=c[0];g=c[1];b=c[2];
+    c=[cl((.213+.787*s)*r+(.715-.715*s)*g+(.072-.072*s)*b),
+       cl((.213-.213*s)*r+(.715+.285*s)*g+(.072-.072*s)*b),
+       cl((.213-.213*s)*r+(.715-.715*s)*g+(.072+.928*s)*b)];
+    var a=p[3]*Math.PI/180,co=Math.cos(a),si=Math.sin(a);
+    r=c[0];g=c[1];b=c[2];
+    c=[cl((.213+co*.787-si*.213)*r+(.715-co*.715-si*.715)*g+(.072-co*.072+si*.928)*b),
+       cl((.213-co*.213+si*.143)*r+(.715+co*.285+si*.140)*g+(.072-co*.072-si*.283)*b),
+       cl((.213-co*.213-si*.787)*r+(.715-co*.715+si*.715)*g+(.072+co*.928+si*.072)*b)];
+    c=c.map(function(x){return cl(x*p[4])});
+    c=c.map(function(x){return cl((x-.5)*p[5]+.5)});
+    return c.map(function(x){return x*255});
+  }
+
+  function lab(rgb){
+    var l=rgb.map(function(x){x/=255;return x<=.04045?x/12.92:Math.pow((x+.055)/1.055,2.4)});
+    var X=(.4124564*l[0]+.3575761*l[1]+.1804375*l[2])/.95047,
+        Y=.2126729*l[0]+.7151522*l[1]+.0721750*l[2],
+        Z=(.0193339*l[0]+.1191920*l[1]+.9503041*l[2])/1.08883;
+    var f=function(t){return t>.008856?Math.cbrt(t):7.787*t+16/116};
+    return [116*f(Y)-16,500*(f(X)-f(Y)),200*(f(Y)-f(Z))];
+  }
+  function dE(a,b){return Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2])}
+
+  function refine(p,L){
+    var best=dE(lab(apply(p)),L),sc=.25,it=0,d,k,dir,q,e;
+    while(sc>2e-5&&it++<4000){
+      var imp=false;
+      for(d=0;d<6;d++){
+        for(dir=-1;dir<=1;dir+=2){
+          q=p.slice();q[d]=Math.min(HI[d],Math.max(LO[d],q[d]+dir*sc*(HI[d]-LO[d])));
+          e=dE(lab(apply(q)),L);
+          if(e<best-1e-9){best=e;p=q;imp=true}
+        }
+      }
+      if(!imp)sc/=2;
+    }
+    return [p,best];
+  }
+
+  function fmt(p){
+    var u=[p[0]*100,p[1]*100,p[2]*100,p[3],p[4]*100,p[5]*100];
+    return u.map(function(x){return Math.round(x*10)/10});
+  }
+  function unfmt(u){return [u[0]/100,u[1]/100,u[2]/100,u[3],u[4]/100,u[5]/100]}
+  function cssOf(u){
+    return 'brightness(0) saturate(100%) invert('+u[0]+'%) sepia('+u[1]+'%) saturate('+u[2]+'%) hue-rotate('+u[3]+'deg) brightness('+u[4]+'%) contrast('+u[5]+'%)';
+  }
+
+  function solve(rgb){
+    var L=lab(rgb),cands=[],i,j;
+    for(i=0;i<4000;i++){
+      var p=LO.map(function(lo,k){return lo+Math.random()*(HI[k]-lo)});
+      if(Math.random()<.5)p[2]=Math.random()*3;
+      cands.push([p,dE(lab(apply(p)),L)]);
+    }
+    cands.sort(function(a,b){return a[1]-b[1]});
+    var top=cands.slice(0,10).map(function(c){return refine(c[0],L)});
+    top.sort(function(a,b){return a[1]-b[1]});
+    // Re-score using the rounded values that are actually printed.
+    var out=top.slice(0,3).map(function(t){
+      var u=fmt(t[0]);return [u,dE(lab(apply(unfmt(u))),L)];
+    });
+    out.sort(function(a,b){return a[1]-b[1]});
+    return out[0];
+  }
+
+  function parse(s){
+    s=s.trim().toLowerCase();
+    var m=s.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/);
+    if(m){var h=m[1];if(h.length==3)h=h.split('').map(function(c){return c+c}).join('');
+      return [0,2,4].map(function(i){return parseInt(h.substr(i,2),16)})}
+    m=s.match(/^(?:rgb\()?\s*(\d{1,3})[\s,]+(\d{1,3})[\s,]+(\d{1,3})\s*\)?$/);
+    if(m){var v=[+m[1],+m[2],+m[3]];if(v.every(function(x){return x<=255}))return v}
+    return null;
+  }
+  var hx=function(v){return '#'+v.map(function(x){return ('0'+Math.round(x).toString(16)).slice(-2)}).join('')};
+
+  // Ground truth: let the browser render a black pixel through the same filter.
+  function browserPixel(css){
+    try{
+      var c=document.createElement('canvas');c.width=c.height=1;
+      var x=c.getContext('2d',{willReadFrequently:true});
+      if(!('filter' in x))return null;
+      x.filter=css;x.fillStyle='#000';x.fillRect(0,0,1,1);
+      var d=x.getImageData(0,0,1,1).data;
+      if(x.filter==='none')return null;
+      return [d[0],d[1],d[2]];
+    }catch(e){return null}
+  }
+
+  var $=function(id){return document.getElementById(id)},cssText='';
+  function run(){
+    var rgb=parse($('hex').value);
+    if(!rgb){$('css').textContent='Enter a valid hex or rgb() color.';return}
+    $('target').style.background=hx(rgb);
+    $('tv').textContent='rgb('+rgb.join(', ')+')  '+hx(rgb);
+    $('pick').value=hx(rgb);
+    var r=solve(rgb),css=cssOf(r[0]);
+    cssText='filter: '+css+';';
+    $('css').textContent=cssText;
+    $('result').style.filter=css;
+    var m=apply(unfmt(r[0]));
+    $('rv').textContent='rgb('+m.map(Math.round).join(', ')+')  '+hx(m);
+    $('de').textContent=r[1].toFixed(2);
+    var bp=browserPixel(css);
+    if(bp){$('bp').textContent='rgb('+bp.join(', ')+')';$('bde').textContent=dE(lab(bp),lab(rgb)).toFixed(2)}
+    else{$('bp').textContent='n/a';$('bde').textContent='n/a'}
+  }
+  $('go').onclick=run;
+  $('hex').addEventListener('keydown',function(e){if(e.key==='Enter')run()});
+  $('pick').oninput=function(){$('hex').value=this.value;run()};
+  $('copy').onclick=function(){
+    var b=this;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1200)};
+    if(navigator.clipboard)navigator.clipboard.writeText(cssText).then(done,function(){});
+  };
+  run();
+})();
+</script>
+</body>
+</html>
